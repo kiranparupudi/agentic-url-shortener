@@ -8,11 +8,11 @@ dependency-graph orchestration engine first (`orchestrator/core/`), prove
 its mechanics with fast synthetic tests, and only then point it at a
 non-trivial target codebase (`url-shortener/`) to demonstrate it isn't a
 toy. (Both the engine tests and the url-shortener test suite were later
-removed and then partially restored, in a deliberate scope-reduction pass -
-see
+removed, found to contradict the assignment's own requirements, and fully
+restored - see
 ["A later simplification"](#a-later-simplification-and-why-it-was-partly-reversed)
-below for that history stated plainly.) The URL shortener is real, working
-code, with a small test suite - but its
+below for that history stated plainly.) The URL shortener is real, working,
+tested code - but its
 purpose here is to be a believable engineering artifact for the
 orchestrator to reason about, generate, and evolve across three scenarios
 that each exercise a different orchestration capability rather than
@@ -31,10 +31,14 @@ Key design decisions and why:
 - **One audit event stream is the single source of truth** - reliability
   metrics are *computed from* the audit log, never tracked separately, so
   they can't silently drift from what actually happened.
-- **Deterministic template agents instead of live LLM calls** - see
+- **Deterministic template agents by default** - see
   [TESTING.md](TESTING.md#trade-offs-made-deliberately) for the reasoning;
   in short, reproducibility and keeping evaluation weight on the
-  orchestration mechanics rather than prompt quality.
+  orchestration mechanics rather than prompt quality. `RequirementsAgent`
+  is the one agent with a real Claude integration behind it, opt-in via
+  `--use-claude` (see `orchestrator/ai/` and
+  [SETUP.md](SETUP.md#using-real-claude-ai-optional)) - everything else
+  stays template-only.
 - **Zero-runtime-dependency target service** - guarantees the whole
   prototype builds and runs from a bare JDK, no network access needed after
   the first `mvn` run.
@@ -43,8 +47,10 @@ Key design decisions and why:
 
 - `orchestrator/` - the engine: `core/` (graph, stage contract, gates,
   policy, approvals, audit log, metrics, orchestrator), `agents/` (6 SDLC
-  stage agents + template writer), `scenarios/` (3 runnable scenarios +
-  shared pipeline builder)
+  stage agents + template writer), `ai/` (`LlmClient`, `ClaudeClient`,
+  `LlmClientFactory` - the real Claude integration behind
+  `RequirementsAgent`), `scenarios/` (3 runnable scenarios + shared
+  pipeline builder)
 - `orchestrator/src/main/resources/templates/` - the versioned "what each
   agent generates" content: greenfield baseline, brownfield delta (in two
   increments, for the re-plan demo), ambiguous delta
@@ -100,13 +106,12 @@ three genuine bugs, all fixed and re-verified:
    when files were missing - see
    [SCENARIOS.md](SCENARIOS.md#why-every-run-re-derives-the-baseline-first).
    A related instance of the same class of bug: a test file added by one
-   scenario (a dedicated ambiguous-only test file) was left behind and
-   broke a *different* scenario's build later. That specific fix (deleting
-   orphaned test files before each build) was **not** re-added when the
-   test suite was restored - instead, the test templates were redesigned so
-   every scenario converges on the same two filenames
-   (`Base62Test.java`, `UrlShortenerServiceTest.java`), which makes orphans
-   structurally impossible rather than cleaning them up after the fact.
+   scenario (`ShortUrlRecordTest.java`, ambiguous-only) was left behind and
+   broke a *different* scenario's build later. Fixed by having `TestingAgent`
+   delete any test file that isn't part of the current scenario's expected
+   set before running the build - re-verified in both directions
+   (ambiguous → brownfield and brownfield → ambiguous) after
+   `ShortUrlRecordTest.java` was reintroduced.
 3. **A metrics gap.** The ambiguity clarification checkpoint is
    content-dependent, so it can't use the orchestrator's static
    `requiresApproval()` flag - `RequirementsAgent` calls the approval
@@ -132,26 +137,21 @@ requirements document states: unit/integration tests are named under
 "Engineering Output Generation", "testable" is a named evaluation
 criterion, "Testing approach, limitations, and trade-offs" is a required
 deliverable section, and "testing" is one of the six explicit SDLC
-lifecycle stages the orchestration layer is supposed to coordinate. Once
-that was pointed out, a **minimal** test suite was restored for the
-url-shortener side - 17 targeted assertions across the three template-set
-variants, including the one test that matters most,
-`expiredLinkClickIsNotCounted`, which proves the brownfield bug fix rather
-than just asserting it happened.
+lifecycle stages the orchestration layer is supposed to coordinate.
 
-The orchestrator engine's own 13 unit tests were initially **not**
-restored, on the reasoning that a minimal request should stay minimal. On
-review, that left the engine's own most distinctive claims - fallback,
-retry exhaustion, entry-gate failure, the static-approval-denial path, and
-independent-branch continuation - with zero automated proof, and for
-fallback specifically no live demonstration either (nothing in any of the
-three scenarios ever configures one). Rather than restoring all 13 or none,
-the 5 tests that are each the *sole* proof of their mechanism were restored
-(`OrchestratorTest`, 5 tests); the other 8 - which duplicate what a live
-scenario run already shows, or defend against inputs this codebase's
-hardcoded graphs can never produce (`DependencyGraphTest`) - were left out.
-See [TESTING.md](TESTING.md#testing-approach) for the itemized reasoning
-behind each of the 5.
+Once that was pointed out, restoration happened in three passes rather
+than all at once: first a minimal url-shortener suite (proving the
+brownfield bug fix via `expiredLinkClickIsNotCounted`), then the 5
+orchestrator engine tests that are each the *sole* proof of their
+mechanism (fallback, retry exhaustion, entry-gate failure, the static
+`requiresApproval()` denial path, and independent-branch continuation -
+none of which any live scenario run can demonstrate), and finally the
+remaining 8 engine tests plus a dedicated test for the ambiguous
+scenario's `lastAccessedAt` field, closing out both gaps that the
+in-between state had explicitly flagged as open. The end state is a full
+test suite again - every template-set variant has its own tests, and the
+orchestrator engine has all 13 of its original tests back. See
+[TESTING.md](TESTING.md#testing-approach) for the current breakdown.
 
 ## Limitations
 

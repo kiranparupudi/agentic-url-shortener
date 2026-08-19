@@ -70,6 +70,35 @@ ambiguous. They're independent (each re-derives its own baseline - see
 [ARCHITECTURE.md](ARCHITECTURE.md)) and can run in any order, but this order
 matches the narrative in [SCENARIOS.md](SCENARIOS.md).
 
+## Using real Claude AI (optional)
+
+By default every agent is a deterministic template - see
+[TESTING.md](TESTING.md#other-limitations) for why. `RequirementsAgent` can
+optionally call the real Claude API instead of its keyword heuristic to
+judge whether a requirement is ambiguous:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+mvn -pl orchestrator exec:java -Dexec.mainClass=com.agentic.orchestrator.scenarios.AmbiguousScenario -Dexec.args="--auto-approve --use-claude"
+```
+
+The ambiguous scenario is where this actually changes anything, since it's
+the one requirement that's genuinely ambiguous - Claude judges it the same
+way the heuristic does (needs clarification) but writes its own
+interpretation instead of the fixed keyword-matched one.
+
+- `ANTHROPIC_MODEL` optionally overrides the model (defaults to
+  `claude-haiku-4-5-20251001` - this is a small classification task, not
+  worth a bigger model).
+- Without `ANTHROPIC_API_KEY` set, `--use-claude` prints a warning and
+  falls back to the deterministic heuristic rather than failing the run.
+- If the Claude call itself fails for any reason (network, invalid key,
+  unexpected response format), `RequirementsAgent` catches it, records why
+  in the decision lineage, and falls back to the heuristic for that run -
+  a flaky API call never takes down the pipeline.
+- This makes that run non-deterministic and dependent on network access,
+  unlike every other default-mode run in this project.
+
 ## Run the generated service
 
 After any scenario has run, `url-shortener` is a real, runnable service:

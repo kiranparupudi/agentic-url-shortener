@@ -3,6 +3,7 @@ package com.agentic.orchestrator.scenarios;
 import com.agentic.orchestrator.agents.DocumentationAgent;
 import com.agentic.orchestrator.agents.ImplementationAgent;
 import com.agentic.orchestrator.agents.TestingAgent;
+import com.agentic.orchestrator.ai.LlmClient;
 import com.agentic.orchestrator.core.ApprovalGateway;
 import com.agentic.orchestrator.core.AuditLogger;
 import com.agentic.orchestrator.core.AutoApproveApprovalGateway;
@@ -24,6 +25,7 @@ import java.util.Map;
  *
  * Run: mvn -pl orchestrator exec:java -Dexec.mainClass=com.agentic.orchestrator.scenarios.BrownfieldScenario
  * Add -Dexec.args=--auto-approve to skip the interactive approval prompts.
+ * Add -Dexec.args=--use-claude to have RequirementsAgent call Claude for real (needs ANTHROPIC_API_KEY).
  */
 public final class BrownfieldScenario {
 
@@ -39,9 +41,10 @@ public final class BrownfieldScenario {
         ApprovalGateway approvalGateway = autoApprove ? new AutoApproveApprovalGateway() : new InteractiveCliApprovalGateway();
         AuditLogger auditLogger = new AuditLogger(runId, workspaceRoot.resolve("audit-logs"));
         PolicyEngine policyEngine = PolicyEngine.defaultGuardrails();
+        LlmClient llmClient = PipelineBuilder.resolveLlmClient(args);
 
         DependencyGraph graph = PipelineBuilder.build(
-                "brownfield-bugfix-only", "brownfield-bugfix-only-test", true, approvalGateway, auditLogger);
+                "brownfield-bugfix-only", "brownfield-bugfix-only-test", true, approvalGateway, auditLogger, llmClient);
         ExecutionContext ctx = new ExecutionContext(runId, "brownfield", workspaceRoot,
                 Map.of("rawRequirement", RAW_REQUIREMENT));
 

@@ -12,8 +12,8 @@ the "Agentic-Proficient Software Engineer" assignment.
   generates
 - [docs/SCENARIOS.md](docs/SCENARIOS.md) - the three required scenarios
   (greenfield/brownfield/ambiguous) with real captured output
-- [docs/TESTING.md](docs/TESTING.md) - testing approach (deliberately
-  minimal, not exhaustive - see why), limitations, trade-offs
+- [docs/TESTING.md](docs/TESTING.md) - testing approach, limitations,
+  trade-offs
 - [docs/SUMMARY.md](docs/SUMMARY.md) - plan, rationale, artifacts, risks,
   assumptions, and what actually broke while building this
 
@@ -31,9 +31,10 @@ release-readiness) with real parallel execution, bounded retries, fallback,
 rollback, safe-stop, human approval checkpoints, policy guardrails, an
 audit-grade event log, and reliability metrics computed from that log.
 `url-shortener/` is the real, working, zero-dependency Java service the
-orchestrator builds, tests, and evolves across three scenarios (a
-deliberately minimal test suite, not an exhaustive one - see
-[docs/TESTING.md](docs/TESTING.md)).
+orchestrator builds, tests, and evolves across three scenarios.
+`RequirementsAgent` can optionally call the real Claude API instead of its
+default keyword heuristic - see
+[docs/SETUP.md](docs/SETUP.md#using-real-claude-ai-optional).
 
 ## Layout
 
@@ -43,6 +44,7 @@ agentic-url-shortener/
 │   ├── core/                 dependency graph, stage contract, gates, policy,
 │   │                         approvals, audit log, metrics, the orchestrator itself
 │   ├── agents/                the 6 SDLC stage agents + template writer
+│   ├── ai/                    optional real Claude client (LlmClient, ClaudeClient)
 │   ├── scenarios/              3 runnable scenarios + shared pipeline builder
 │   └── resources/templates/    what each agent generates, per scenario
 ├── url-shortener/            the generated/evolved target service
