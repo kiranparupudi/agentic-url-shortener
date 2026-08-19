@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.agentic</groupId>
+    <artifactId>agentic-url-shortener-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+
+  <artifactId>orchestrator</artifactId>
+  <packaging>jar</packaging>
+  <name>Agentic SDLC Orchestrator</name>
+  <description>
+    Domain-agnostic dependency-graph based orchestration engine that drives
+    the URL shortener through requirements -&gt; design -&gt; implementation ->
+    testing -&gt; documentation -&gt; release-readiness, with gates, approvals,
+    retries, rollback, policy guardrails and audit-grade observability.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>orchestrator</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
