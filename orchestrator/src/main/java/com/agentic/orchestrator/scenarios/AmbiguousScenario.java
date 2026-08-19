@@ -1,5 +1,6 @@
 package com.agentic.orchestrator.scenarios;
 
+import com.agentic.orchestrator.ai.LlmClient;
 import com.agentic.orchestrator.core.ApprovalGateway;
 import com.agentic.orchestrator.core.AuditLogger;
 import com.agentic.orchestrator.core.AutoApproveApprovalGateway;
@@ -21,6 +22,8 @@ import java.util.Map;
  *
  * Run: mvn -pl orchestrator exec:java -Dexec.mainClass=com.agentic.orchestrator.scenarios.AmbiguousScenario
  * Add -Dexec.args=--auto-approve to auto-approve the clarification (skips the interactive prompt).
+ * Add -Dexec.args=--use-claude to have RequirementsAgent call Claude for real (needs ANTHROPIC_API_KEY) -
+ * this is the scenario where that actually changes what happens, since it's the one with an ambiguous requirement.
  */
 public final class AmbiguousScenario {
 
@@ -36,8 +39,9 @@ public final class AmbiguousScenario {
                 : autoApprove ? new AutoApproveApprovalGateway() : new InteractiveCliApprovalGateway();
         AuditLogger auditLogger = new AuditLogger(runId, workspaceRoot.resolve("audit-logs"));
         PolicyEngine policyEngine = PolicyEngine.defaultGuardrails();
+        LlmClient llmClient = PipelineBuilder.resolveLlmClient(args);
 
-        DependencyGraph graph = PipelineBuilder.build("ambiguous", "greenfield-test", false, approvalGateway, auditLogger);
+        DependencyGraph graph = PipelineBuilder.build("ambiguous", "ambiguous-test", false, approvalGateway, auditLogger, llmClient);
         ExecutionContext ctx = new ExecutionContext(runId, "ambiguous", workspaceRoot,
                 Map.of("rawRequirement", RAW_REQUIREMENT));
 

@@ -7,10 +7,13 @@ import com.agentic.orchestrator.core.Stage;
 import com.agentic.orchestrator.core.StageResult;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -59,15 +62,28 @@ public final class TestingAgent implements Stage {
                 .resolve("url-shortener").resolve("src").resolve("test").resolve("java")
                 .resolve("com").resolve("agentic").resolve("urlshortener");
 
-        List<String> written = new ArrayList<>();
+        Set<String> expected = new LinkedHashSet<>();
         if (!testTemplateSet.equals("greenfield-test")) {
             // write the baseline test files first, then let this scenario's set overwrite them
-            written.addAll(TemplateWriter.writeAll("greenfield-test", targetTestDir));
+            expected.addAll(TemplateWriter.writeAll("greenfield-test", targetTestDir));
         }
-        written.addAll(TemplateWriter.writeAll(testTemplateSet, targetTestDir));
+        expected.addAll(TemplateWriter.writeAll(testTemplateSet, targetTestDir));
+
+        // a different scenario's test set may have left a file behind (e.g. ShortUrlRecordTest.java
+        // from ambiguous) that doesn't apply here - remove anything not in this scenario's set
+        List<String> removed = new ArrayList<>();
+        try (var stream = Files.list(targetTestDir)) {
+            for (Path p : stream.filter(f -> f.toString().endsWith(".java")).toList()) {
+                if (!expected.contains(p.getFileName().toString())) {
+                    Files.delete(p);
+                    removed.add(p.getFileName().toString());
+                }
+            }
+        }
 
         ctx.recordDecision(Decision.of(id(),
-                "wrote/updated test file(s): " + written,
+                "wrote/updated test file(s): " + expected
+                        + (removed.isEmpty() ? "" : "; removed stale file(s) from a different scenario: " + removed),
                 "test coverage must track the implementation delta so regressions are caught, not just re-asserted"));
         ctx.putArtifact("testsExistForImplementation", true);
 

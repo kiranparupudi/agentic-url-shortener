@@ -1,5 +1,6 @@
 package com.agentic.orchestrator.scenarios;
 
+import com.agentic.orchestrator.ai.LlmClient;
 import com.agentic.orchestrator.core.ApprovalGateway;
 import com.agentic.orchestrator.core.AuditLogger;
 import com.agentic.orchestrator.core.AutoApproveApprovalGateway;
@@ -19,6 +20,7 @@ import java.util.Map;
  *
  * Run: mvn -pl orchestrator exec:java -Dexec.mainClass=com.agentic.orchestrator.scenarios.GreenfieldScenario
  * Add -Dexec.args=--auto-approve to skip the interactive approval prompt.
+ * Add -Dexec.args=--use-claude to have RequirementsAgent call Claude for real (needs ANTHROPIC_API_KEY).
  */
 public final class GreenfieldScenario {
 
@@ -35,8 +37,9 @@ public final class GreenfieldScenario {
         ApprovalGateway approvalGateway = autoApprove ? new AutoApproveApprovalGateway() : new InteractiveCliApprovalGateway();
         AuditLogger auditLogger = new AuditLogger(runId, workspaceRoot.resolve("audit-logs"));
         PolicyEngine policyEngine = PolicyEngine.defaultGuardrails();
+        LlmClient llmClient = PipelineBuilder.resolveLlmClient(args);
 
-        DependencyGraph graph = PipelineBuilder.build("greenfield", "greenfield-test", false, approvalGateway, auditLogger);
+        DependencyGraph graph = PipelineBuilder.build("greenfield", "greenfield-test", false, approvalGateway, auditLogger, llmClient);
         ExecutionContext ctx = new ExecutionContext(runId, "greenfield", workspaceRoot,
                 Map.of("rawRequirement", RAW_REQUIREMENT));
 

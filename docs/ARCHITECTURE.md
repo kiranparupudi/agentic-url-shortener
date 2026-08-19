@@ -105,15 +105,18 @@ Each agent is a `Stage` implementation with deterministic logic standing in
 for what an LLM-backed executor would produce for the same normalized
 input - the seam is exactly `Stage.execute(ExecutionContext ctx)`, which
 takes only the shared context in and returns a typed result out, the same
-shape a tool-using model call would have. Swapping a real model in means
-replacing one method body; nothing about the orchestrator changes.
+shape a tool-using model call would have. `RequirementsAgent` actually uses
+that seam for real - see `orchestrator/ai/` (`LlmClient`, `ClaudeClient`,
+`LlmClientFactory`) and [SETUP.md](SETUP.md#using-real-claude-ai-optional).
+The other five are still template-only; swapping a real model in for any of
+them means replacing one method body, same pattern.
 
 | Agent | Depends on | What it actually does |
 |---|---|---|
-| `RequirementsAgent` | - | Heuristically flags vague requirements, proposes a concrete interpretation, and pauses on a real approval checkpoint before normalizing if ambiguous |
+| `RequirementsAgent` | - | Flags vague requirements and proposes a concrete interpretation, then pauses on a real approval checkpoint before normalizing if ambiguous. Uses a keyword heuristic by default, or a real Claude call if given an `LlmClient` |
 | `ArchitectureAgent` | requirements | Records the component design decision (in-process HTTP server, in-memory store behind an interface, Base62 codes, rate limiter) with rationale |
 | `ImplementationAgent` | architecture | Writes real `.java` files into `url-shortener/src/main/java` from a bundled template set, tracking a before/after backup for rollback |
-| `TestingAgent` | implementation | Writes a small, targeted test file for the template set, then actually runs `mvn -pl url-shortener test` - a real build, not a simulated pass/fail (deliberately minimal coverage, not exhaustive - see [TESTING.md](TESTING.md)) |
+| `TestingAgent` | implementation | Writes the test files for the template set, then actually runs `mvn -pl url-shortener test` - a real build, not a simulated pass/fail (see [TESTING.md](TESTING.md) for what each template set covers) |
 | `DocumentationAgent` | implementation | Regenerates `url-shortener/README.md` from the current implementation + architecture decision |
 | `ReleaseReadinessAgent` | testing, documentation | Final go/no-go: green build + docs present + no blocking policy violations, gated on human approval |
 

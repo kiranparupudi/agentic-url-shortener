@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Covers only the 5 mechanisms no live scenario run exercises - see docs/TESTING.md for why. */
+/** Full engine coverage - parallel execution, retry, fallback, rollback, gates, approvals, and re-plan. */
 class OrchestratorTest {
 
     @TempDir
@@ -108,5 +108,80 @@ class OrchestratorTest {
         assertEquals(StageStatus.FAILED, report.stageStatuses().get("a"));
         assertEquals(StageStatus.SUCCESS, report.stageStatuses().get("b"));
         assertEquals(StageStatus.BLOCKED, report.stageStatuses().get("c"));
+    }
+
+    @Test
+    void independentStagesInSameLevelBothSucceed() {
+        TestStage a = TestStage.alwaysSucceeds("a", List.of());
+        TestStage b = TestStage.alwaysSucceeds("b", List.of());
+        DependencyGraph graph = new DependencyGraph().addStage(a).addStage(b);
+
+        Orchestrator orchestrator = newOrchestrator(graph);
+        RunReport report = orchestrator.run(newContext("r6"));
+        orchestrator.shutdown();
+
+        assertTrue(report.overallSuccess());
+        assertEquals(StageStatus.SUCCESS, report.stageStatuses().get("a"));
+        assertEquals(StageStatus.SUCCESS, report.stageStatuses().get("b"));
+    }
+
+    @Test
+    void recoverableFailureIsRetriedThenSucceeds() {
+        TestStage stage = new TestStage("flaky", List.of(),
+                attempt -> attempt == 1
+                        ? StageResult.recoverable("transient", null)
+                        : StageResult.success("recovered"))
+                .withRetryPolicy(new RetryPolicy(2, 1, 1.0));
+        DependencyGraph graph = new DependencyGraph().addStage(stage);
+
+        Orchestrator orchestrator = newOrchestrator(graph);
+        RunReport report = orchestrator.run(newContext("r7"));
+        orchestrator.shutdown();
+
+        assertTrue(report.overallSuccess());
+        assertEquals(2, stage.attemptCount());
+        assertEquals(1, report.metrics().retryCount());
+    }
+
+    @Test
+    void rollbackAndSafeStopWhenNoFallbackAvailable() {
+        TestStage stage = TestStage.alwaysFailsFatally("doomed", List.of());
+        TestStage dependent = TestStage.alwaysSucceeds("dependent", List.of("doomed"));
+        DependencyGraph graph = new DependencyGraph().addStage(stage).addStage(dependent);
+
+        Orchestrator orchestrator = newOrchestrator(graph);
+        RunReport report = orchestrator.run(newContext("r8"));
+        orchestrator.shutdown();
+
+        assertFalse(report.overallSuccess());
+        assertTrue(stage.rolledBack);
+        assertEquals(StageStatus.BLOCKED, report.stageStatuses().get("dependent"));
+    }
+
+    @Test
+    void replanOnlyReExecutesTheAffectedSubgraph() {
+        TestStage a = TestStage.alwaysSucceeds("a", List.of());
+        TestStage b = TestStage.alwaysSucceeds("b", List.of("a"));
+        TestStage c = TestStage.alwaysSucceeds("c", List.of("b"));
+        DependencyGraph graph = new DependencyGraph().addStage(a).addStage(b).addStage(c);
+
+        Orchestrator orchestrator = newOrchestrator(graph);
+        ExecutionContext ctx = newContext("r9");
+        RunReport first = orchestrator.run(ctx);
+        assertTrue(first.overallSuccess());
+        assertEquals(1, a.attemptCount());
+        assertEquals(1, b.attemptCount());
+        assertEquals(1, c.attemptCount());
+
+        TestStage newB = TestStage.alwaysSucceeds("b", List.of("a"));
+        graph.addStage(newB);
+
+        RunReport second = orchestrator.replan(ctx, "b", "upstream artifact changed");
+        orchestrator.shutdown();
+
+        assertTrue(second.overallSuccess());
+        assertEquals(1, a.attemptCount(), "unaffected upstream stage must not be re-run");
+        assertEquals(1, newB.attemptCount());
+        assertEquals(2, c.attemptCount(), "downstream dependent of the changed stage must be re-run");
     }
 }
